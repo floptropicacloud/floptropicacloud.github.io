@@ -1,0 +1,663 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Notes</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --accent-color: #3b82f6; /* Default Blue */
+            --accent-color-light: #60a5fa;
+            --accent-color-dark: #2563eb;
+            --accent-color-translucent: rgba(59, 130, 246, 0.3);
+        }
+
+        /* Custom scrollbar for a more modern look */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: rgba(255, 255, 255, 0.05); border-radius: 10px; }
+        ::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.2); border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.3); }
+
+        body {
+            font-family: 'Outfit', sans-serif;
+            background-color: #0d1117;
+            color: #c9d1d9;
+            overflow: hidden; /* Hide body scrollbars */
+        }
+        
+        /* The moving background orb */
+        .orb {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            width: 800px;
+            height: 800px;
+            border-radius: 50%;
+            background: radial-gradient(circle, var(--accent-color-translucent) 0%, rgba(29, 78, 216, 0) 60%);
+            z-index: 0;
+            animation: moveOrb 30s infinite alternate ease-in-out;
+            will-change: transform;
+            transition: background 0.5s ease;
+        }
+
+        @keyframes moveOrb {
+            0% { transform: translate(-50%, -50%) scale(1); }
+            100% { transform: translate(-30%, -70%) scale(1.5); }
+        }
+
+        .panel-box {
+            position: relative;
+            z-index: 1;
+            backdrop-filter: blur(100px);
+            background: rgba(10, 10, 15, 0.5);
+            border-radius: 1rem;
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .note-list-item.selected { background-color: var(--accent-color-translucent); }
+        .note-content-preview { white-space: pre-wrap; word-wrap: break-word; overflow-wrap: break-word; }
+
+        .modal-backdrop { backdrop-filter: blur(8px) saturate(150%); -webkit-backdrop-filter: blur(8px) saturate(150%); }
+        .modal-panel { background: rgba(30, 30, 40, 0.7); backdrop-filter: blur(24px) saturate(180%); -webkit-backdrop-filter: blur(24px) saturate(180%); box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37); }
+        
+        .category-btn.active { background-color: var(--accent-color-translucent); color: #eff6ff; }
+        .action-btn.active { color: var(--accent-color-light); }
+        .category-btn.deletable:hover { background-color: rgba(239, 68, 68, 0.2); }
+        .category-btn.deletable .delete-x { display: inline-block; margin-left: 8px; color: #ef4444; font-weight: bold; }
+        .category-btn .delete-x { display: none; }
+        
+        .category-select {
+            -webkit-appearance: none; -moz-appearance: none; appearance: none;
+            background-image: url('data:image/svg+xml;utf8,<svg fill="white" height="24" viewBox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg"><path d="M7 10l5 5 5-5z"/></svg>');
+            background-repeat: no-repeat; background-position: right 0.5rem center; background-size: 1.5em; padding-right: 2.5rem;
+        }
+
+        #note-content { min-height: 200px; }
+        #note-content:focus { outline: none; }
+        #note-content img { cursor: grab; max-width: 50%; border-radius: 0.5rem; }
+        #note-content img:active { cursor: grabbing; }
+
+        /* Accent Color Classes */
+        .accent-bg { background-color: var(--accent-color); }
+        .accent-bg-hover:hover { background-color: var(--accent-color-dark); }
+        .accent-text { color: var(--accent-color-light); }
+        .accent-ring-focus:focus {ring-color: var(--accent-color); }
+        .accent-file-button { color: var(--accent-color-dark); }
+        .accent-file-button-hover:hover { background-color: var(--accent-color-light); }
+
+        .color-swatch { width: 32px; height: 32px; border-radius: 50%; cursor: pointer; border: 2px solid transparent; transition: border-color 0.2s; }
+        .color-swatch.selected { border-color: white; }
+        
+        .format-btn.active { background-color: var(--accent-color-translucent); }
+        
+        /* Spinner Animation */
+        .spinner {
+            animation: rotate 1.5s linear infinite;
+        }
+        @keyframes rotate {
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body class="w-screen h-screen">
+    <div class="orb"></div>
+    <div id="app" class="relative w-full h-full">
+        <main class="w-full h-full max-w-7xl mx-auto flex flex-row gap-4 p-4 md:p-8">
+            <aside id="notes-list-container" class="panel-box w-full md:w-1/3 lg:w-1/4 h-full transition-all duration-300">
+                <header class="flex-shrink-0 flex items-center justify-between p-4 border-b border-white/5">
+                    <h1 class="text-xl font-bold text-white/90 tracking-wider">Notes</h1>
+                    <button id="add-note-btn" class="accent-bg accent-bg-hover text-white font-semibold p-2 rounded-lg shadow-lg transition-transform duration-100 active:scale-95 flex items-center">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd" /></svg>
+                    </button>
+                </header>
+                <div id="notes-list" class="flex-grow overflow-y-auto p-2"></div>
+                 <footer id="category-footer" class="flex-shrink-0 p-2 border-t border-white/5">
+                     <div id="footer-actions" class="flex items-center justify-around p-1 mb-2 border-b border-white/10"></div>
+                    <div id="category-filters" class="flex items-center space-x-2 overflow-x-auto pb-2"></div>
+                </footer>
+            </aside>
+            <section id="note-editor-container" class="panel-box w-full md:w-2/3 lg:w-3/4 h-full transition-all duration-300 md:flex absolute md:relative top-4 md:top-auto left-4 md:left-auto right-4 md:right-auto -translate-x-[110%] md:translate-x-0">
+                <div id="editor-placeholder" class="w-full h-full flex flex-col items-center justify-center text-center text-gray-400 p-8">
+                   <svg xmlns="http://www.w3.org/2000/svg" class="h-16 w-16 mb-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1"><path stroke-linecap="round" stroke-linejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>
+                   <h2 class="text-2xl font-semibold">Select a note</h2>
+                   <p class="mt-2 max-w-sm">Choose a note from the list on the left to view its content, or create a new note to get started.</p>
+                </div>
+                <div id="note-editor" class="hidden w-full h-full flex-col">
+                    <div class="flex-shrink-0 flex items-center justify-between p-2 md:p-4 border-b border-white/5 gap-2 md:gap-4">
+                        <button id="back-to-list-btn" class="md:hidden flex-shrink-0 text-white/80 hover:bg-white/10 p-2 rounded-lg transition-transform duration-100 active:scale-95"><svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" /></svg></button>
+                        <div class="flex-1 flex flex-wrap items-center gap-2 min-w-0">
+                           <select id="note-category-select" class="category-select bg-white/5 hover:bg-white/10 text-white/80 text-sm rounded-md px-3 py-1.5 focus:outline-none focus:ring-2 accent-ring-focus transition-colors w-auto flex-shrink max-w-full sm:max-w-[50%]"></select>
+                           <p id="note-timestamp" class="text-sm text-white/50 text-right truncate flex-shrink min-w-0 w-full sm:w-auto"></p>
+                        </div>
+                        <button id="add-image-btn" class="flex-shrink-0 text-white/60 hover:text-green-500 hover:bg-green-500/10 p-2 rounded-lg transition-transform duration-100 active:scale-95"></button>
+                        <button id="archive-note-btn" class="flex-shrink-0 text-white/60 hover:text-yellow-500 hover:bg-yellow-500/10 p-2 rounded-lg transition-transform duration-100 active:scale-95"></button>
+                        <button id="delete-current-note-btn" class="flex-shrink-0 text-white/60 hover:text-red-500 hover:bg-red-500/10 p-2 rounded-lg transition-transform duration-100 active:scale-95"></button>
+                    </div>
+                    <div id="editor-toolbar" class="flex-shrink-0 flex items-center gap-1 p-2 border-b border-white/5">
+                        <button data-command="bold" class="format-btn font-bold w-8 h-8 rounded-md hover:bg-white/10 active:bg-white/[.15] transition-colors" title="Bold (Ctrl+B)">B</button>
+                        <button data-command="italic" class="format-btn italic w-8 h-8 rounded-md hover:bg-white/10 active:bg-white/[.15] transition-colors" title="Italic (Ctrl+I)">I</button>
+                        <button data-command="underline" class="format-btn underline w-8 h-8 rounded-md hover:bg-white/10 active:bg-white/[.15] transition-colors" title="Underline (Ctrl+U)">U</button>
+                        <button data-command="strikeThrough" class="format-btn line-through w-8 h-8 rounded-md hover:bg-white/10 active:bg-white/[.15] transition-colors" title="Strikethrough">S</button>
+                         <div class="h-6 w-px bg-white/10 mx-2"></div>
+                        <button id="summarize-btn" class="format-btn w-8 h-8 rounded-md hover:bg-white/10 active:bg-white/[.15] transition-colors flex items-center justify-center" title="✨ Summarize Note"></button>
+                        <button id="continue-writing-btn" class="format-btn w-8 h-8 rounded-md hover:bg-white/10 active:bg-white/[.15] transition-colors flex items-center justify-center" title="✨ Continue Writing"></button>
+                    </div>
+                    <div class="flex-grow p-6 overflow-y-auto">
+                        <input id="note-title" type="text" placeholder="Title" class="w-full bg-transparent text-3xl font-bold text-white/90 placeholder-white/40 focus:outline-none mb-4">
+                        <div id="note-content" contenteditable="true" class="w-full h-full bg-transparent text-lg text-white/80 placeholder-white/40 focus:outline-none resize-none leading-relaxed"></div>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+    
+    <!-- Launch Screen -->
+    <div id="launch-screen" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop">
+        <div class="modal-panel relative w-full max-w-lg mx-auto rounded-2xl p-6 text-center overflow-hidden">
+            <div id="launch-step-1">
+                <h2 class="text-3xl font-bold text-white mb-4">Welcome to Notes</h2>
+                <p class="text-white/70 mb-6">Let's get you set up. First, choose an accent color for your interface.</p>
+                <div id="launch-color-palette" class="flex justify-center gap-4 mb-8"></div>
+                <button id="launch-next-1" class="accent-bg accent-bg-hover text-white font-semibold px-6 py-2 rounded-lg transition-transform duration-100 active:scale-95 w-full">Next</button>
+            </div>
+            <div id="launch-step-2" class="hidden">
+                 <h2 class="text-3xl font-bold text-white mb-4">Create Categories</h2>
+                 <p class="text-white/70 mb-6">Organize your notes by creating categories. You can add more later in settings.</p>
+                 <div class="flex gap-2 mb-4">
+                    <input type="text" id="launch-category-input" placeholder="Category name..." class="flex-grow bg-white/5 border border-white/20 rounded-md px-3 py-2 text-white placeholder-white/40 focus:outline-none focus:ring-2 accent-ring-focus">
+                    <button id="launch-add-category-btn" class="accent-bg accent-bg-hover text-white font-semibold px-4 py-2 rounded-lg transition-transform duration-100 active:scale-95">Add</button>
+                </div>
+                <div id="launch-category-list" class="flex flex-wrap justify-center gap-2 mb-8 min-h-[40px]"></div>
+                <button id="launch-finish" class="accent-bg accent-bg-hover text-white font-semibold px-6 py-2 rounded-lg transition-transform duration-100 active:scale-95 w-full">Get Started</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modals -->
+    <div id="confirmation-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div class="modal-backdrop absolute inset-0 bg-black/50"></div>
+        <div class="modal-panel relative w-full max-w-sm mx-auto rounded-2xl p-6 text-center">
+            <h3 id="confirmation-title" class="text-lg font-semibold text-white mb-2">Confirm Action</h3>
+            <p id="confirmation-message" class="text-white/70 mb-6">Are you sure?</p>
+            <div class="flex justify-center space-x-3">
+                <button id="cancel-confirmation-btn" class="px-4 py-2 rounded-lg text-white/80 hover:bg-white/10 transition-transform duration-100 active:scale-95 w-full">Cancel</button>
+                <button id="confirm-confirmation-btn" class="px-4 py-2 rounded-lg bg-red-600 hover:bg-red-500 text-white font-semibold transition-transform duration-100 active:scale-95 w-full">Confirm</button>
+            </div>
+        </div>
+    </div>
+    <div id="add-image-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div class="modal-backdrop absolute inset-0 bg-black/50"></div>
+        <div class="modal-panel relative w-full max-w-md mx-auto rounded-2xl p-6">
+            <h3 class="text-lg font-semibold text-white mb-4">Add Local Image</h3>
+            <input type="file" id="image-file-input" accept="image/*" class="w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-gray-200 accent-file-button accent-file-button-hover">
+            <div class="flex justify-end gap-3 mt-4">
+                <button id="cancel-add-image-btn" class="px-4 py-2 rounded-lg text-white/80 hover:bg-white/10 transition-transform duration-100 active:scale-95">Cancel</button>
+                <button id="confirm-add-image-btn" class="accent-bg accent-bg-hover px-4 py-2 rounded-lg text-white font-semibold transition-transform duration-100 active:scale-95">Add Image</button>
+            </div>
+        </div>
+    </div>
+    <div id="settings-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div class="modal-backdrop absolute inset-0 bg-black/50"></div>
+        <div class="modal-panel relative w-full max-w-lg mx-auto rounded-2xl p-6 overflow-y-auto max-h-[90vh]">
+            <h3 class="text-xl font-semibold text-white mb-6">Settings</h3>
+            <!-- Accent Color -->
+            <div class="mb-6">
+                <h4 class="text-lg font-medium text-white/90 mb-3">Accent Color</h4>
+                <div id="settings-color-palette" class="flex flex-wrap justify-start gap-4"></div>
+            </div>
+            <!-- Category Management -->
+            <div class="mb-6">
+                <h4 class="text-lg font-medium text-white/90 mb-3">Add Category</h4>
+                 <div class="flex gap-2">
+                    <input type="text" id="settings-category-input" placeholder="New category name..." class="flex-grow bg-white/5 border border-white/20 rounded-md px-3 py-2 text-white placeholder-white/40 focus:outline-none focus:ring-2 accent-ring-focus">
+                    <button id="settings-add-category-btn" class="accent-bg accent-bg-hover text-white font-semibold px-4 py-2 rounded-lg transition-transform duration-100 active:scale-95">Add</button>
+                </div>
+            </div>
+            <!-- Data Management -->
+            <div class="mb-6">
+                 <h4 class="text-lg font-medium text-white/90 mb-3">Data Management</h4>
+                 <div class="flex flex-col sm:flex-row gap-2">
+                     <button id="export-data-btn" class="w-full px-4 py-2 rounded-lg bg-green-600/20 hover:bg-green-600/40 text-green-300 font-semibold transition-transform duration-100 active:scale-95">Export Data</button>
+                     <label class="w-full px-4 py-2 rounded-lg bg-yellow-600/20 hover:bg-yellow-600/40 text-yellow-300 font-semibold transition cursor-pointer text-center transition-transform duration-100 active:scale-95">Import Data<input type="file" id="import-data-input" class="hidden" accept=".json"></label>
+                 </div>
+            </div>
+             <!-- Danger Zone -->
+            <div>
+                 <h4 class="text-lg font-medium text-red-400 mb-3">Danger Zone</h4>
+                 <div class="bg-red-900/20 border border-red-500/30 p-4 rounded-lg">
+                     <p class="text-white/80 mb-3">This will permanently delete all notes and categories. This action cannot be undone.</p>
+                     <button id="clear-all-data-btn" class="w-full px-4 py-2 rounded-lg bg-red-600 hover:bg-red-500 text-white font-semibold transition-transform duration-100 active:scale-95">Clear All Data</button>
+                 </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- AI Modals -->
+    <div id="loading-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 modal-backdrop">
+        <div class="modal-panel relative w-full max-w-xs mx-auto rounded-2xl p-6 text-center flex flex-col items-center gap-4">
+             <svg class="spinner h-8 w-8 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            <p id="loading-message" class="text-white/80">Generating...</p>
+        </div>
+    </div>
+
+    <div id="summary-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div class="modal-backdrop absolute inset-0 bg-black/50"></div>
+        <div class="modal-panel relative w-full max-w-lg mx-auto rounded-2xl p-6">
+            <h3 class="text-lg font-semibold text-white mb-4">✨ Note Summary</h3>
+            <div id="summary-content" class="bg-black/20 p-4 rounded-lg text-white/80 max-h-60 overflow-y-auto mb-4 border border-white/10"></div>
+            <div class="flex justify-end gap-3">
+                <button id="close-summary-btn" class="px-4 py-2 rounded-lg text-white/80 hover:bg-white/10 transition-transform duration-100 active:scale-95">Close</button>
+            </div>
+        </div>
+    </div>
+
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            let currentNoteId = null;
+            let currentCategory = 'All';
+            let isDeleteModeActive = false;
+
+            const DOM = {
+                notesList: document.getElementById('notes-list'), addNoteBtn: document.getElementById('add-note-btn'), backToListBtn: document.getElementById('back-to-list-btn'), noteEditorContainer: document.getElementById('note-editor-container'), editorPlaceholder: document.getElementById('editor-placeholder'), noteEditor: document.getElementById('note-editor'), noteTitleInput: document.getElementById('note-title'), noteContent: document.getElementById('note-content'), deleteCurrentNoteBtn: document.getElementById('delete-current-note-btn'), archiveNoteBtn: document.getElementById('archive-note-btn'), addImageBtn: document.getElementById('add-image-btn'), noteTimestamp: document.getElementById('note-timestamp'), noteCategorySelect: document.getElementById('note-category-select'), categoryFilters: document.getElementById('category-filters'), footerActions: document.getElementById('footer-actions'),
+                editorToolbar: document.getElementById('editor-toolbar'),
+                summarizeBtn: document.getElementById('summarize-btn'),
+                continueWritingBtn: document.getElementById('continue-writing-btn'),
+                confirmationModal: { el: document.getElementById('confirmation-modal'), title: document.getElementById('confirmation-title'), message: document.getElementById('confirmation-message'), confirmBtn: document.getElementById('confirm-confirmation-btn'), cancelBtn: document.getElementById('cancel-confirmation-btn'), backdrop: document.querySelector('#confirmation-modal .modal-backdrop'), },
+                addImageModal: { el: document.getElementById('add-image-modal'), input: document.getElementById('image-file-input'), confirmBtn: document.getElementById('confirm-add-image-btn'), cancelBtn: document.getElementById('cancel-add-image-btn'), backdrop: document.querySelector('#add-image-modal .modal-backdrop'), },
+                settingsModal: { el: document.getElementById('settings-modal'), colorPalette: document.getElementById('settings-color-palette'), categoryInput: document.getElementById('settings-category-input'), addCategoryBtn: document.getElementById('settings-add-category-btn'), exportBtn: document.getElementById('export-data-btn'), importInput: document.getElementById('import-data-input'), clearDataBtn: document.getElementById('clear-all-data-btn'), backdrop: document.querySelector('#settings-modal .modal-backdrop'), },
+                launchScreen: { el: document.getElementById('launch-screen'), step1: document.getElementById('launch-step-1'), step2: document.getElementById('launch-step-2'), finishBtn: document.getElementById('launch-finish'), colorPalette: document.getElementById('launch-color-palette'), next1Btn: document.getElementById('launch-next-1'), categoryInput: document.getElementById('launch-category-input'), addCategoryBtn: document.getElementById('launch-add-category-btn'), categoryList: document.getElementById('launch-category-list'), },
+                loadingModal: { el: document.getElementById('loading-modal'), message: document.getElementById('loading-message') },
+                summaryModal: { el: document.getElementById('summary-modal'), content: document.getElementById('summary-content'), closeBtn: document.getElementById('close-summary-btn'), backdrop: document.querySelector('#summary-modal .modal-backdrop') },
+            };
+
+            const ICONS = {
+                archive: `<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 4H6a2 2 0 00-2 2v12a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-2m-4-1v8m0 0l3-3m-3 3L9 8m-5 5h12" /></svg>`,
+                unarchive: `<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>`,
+                settings: `<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>`,
+                delete: `<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>`,
+                archiveBox: `<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-14L4 7m8 4v10M4 7v10l8 4" /></svg>`,
+                image: `<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>`,
+                deleteNote: `<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>`,
+                summarize: `<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /><path d="M17.5 9.5l-1.5-1.5 1.5-1.5m-5 3l-1.5-1.5 1.5-1.5" stroke-linecap="round" stroke-linejoin="round"></path></svg>`,
+                continueWriting: `<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /><path d="M17.5 9.5l-1.5-1.5 1.5-1.5m-5 3l-1.5-1.5 1.5-1.5" stroke-linecap="round" stroke-linejoin="round"></path></svg>`,
+            };
+            
+            const ACCENT_COLORS = [ { name: 'Blue', hex: '#3b82f6' }, { name: 'Green', hex: '#22c55e' }, { name: 'Purple', hex: '#8b5cf6' }, { name: 'Pink', hex: '#ec4899' }, { name: 'Orange', hex: '#f97316' }, { name: 'Red', hex: '#ef4444' }, { name: 'Teal', hex: '#14b8a6'} ];
+            const APP_VERSION = 'v12';
+
+            const DATA = {
+                getNotes: () => JSON.parse(localStorage.getItem(`notes-app-${APP_VERSION}-notes`) || '[]').map(note => ({ ...note, isArchived: note.isArchived || false })),
+                saveNotes: (notes) => localStorage.setItem(`notes-app-${APP_VERSION}-notes`, JSON.stringify(notes)),
+                getCategories: () => JSON.parse(localStorage.getItem(`notes-app-${APP_VERSION}-categories`) || '[]'),
+                saveCategories: (categories) => localStorage.setItem(`notes-app-${APP_VERSION}-categories`, JSON.stringify(categories)),
+                getAccentColor: () => localStorage.getItem(`notes-app-${APP_VERSION}-accent-color`) || ACCENT_COLORS[0].hex,
+                saveAccentColor: (color) => localStorage.setItem(`notes-app-${APP_VERSION}-accent-color`, color),
+                hasVisited: () => localStorage.getItem(`notes-app-${APP_VERSION}-visited`),
+                setVisited: () => localStorage.setItem(`notes-app-${APP_VERSION}-visited`, 'true'),
+            };
+            
+            const applyAccentColor = (hex) => {
+                const root = document.documentElement;
+                root.style.setProperty('--accent-color', hex);
+                root.style.setProperty('--accent-color-light', `${hex}99`); // Add some transparency for lighter shade
+                root.style.setProperty('--accent-color-dark', shadeColor(hex, -20));
+                root.style.setProperty('--accent-color-translucent', `${hex}4D`); // 30% opacity
+                DATA.saveAccentColor(hex);
+            };
+            
+            const shadeColor = (color, percent) => { // Helper to darken color
+                let f=parseInt(color.slice(1),16),t=percent<0?0:255,p=percent<0?percent*-1:percent,R=f>>16,G=f>>8&0x00FF,B=f&0x0000FF;
+                return "#"+(0x1000000+(Math.round((t-R)*p)+R)*0x10000+(Math.round((t-G)*p)+G)*0x100+(Math.round((t-B)*p)+B)).toString(16).slice(1);
+            };
+
+            const renderFooter = () => {
+                DOM.footerActions.innerHTML = `
+                    <button id="settings-btn" class="action-btn p-2 text-white/60 hover:text-white transition-transform duration-100 active:scale-95" title="Settings">${ICONS.settings}</button>
+                    <button id="delete-mode-btn" class="action-btn p-2 text-white/60 hover:text-white transition-transform duration-100 active:scale-95 ${isDeleteModeActive ? 'active' : ''}" title="Delete Categories">${ICONS.delete}</button>
+                    <button id="archive-filter-btn" class="action-btn p-2 text-white/60 hover:text-white transition-transform duration-100 active:scale-95 ${currentCategory === 'Archived' ? 'active' : ''}" title="View Archived Notes">${ICONS.archiveBox}</button>
+                `;
+                document.getElementById('settings-btn').onclick = openSettingsModal;
+                document.getElementById('delete-mode-btn').onclick = toggleDeleteMode;
+                document.getElementById('archive-filter-btn').onclick = () => { currentCategory = 'Archived'; currentNoteId = null; isDeleteModeActive = false; renderApp(); };
+
+                const categories = ['All', ...DATA.getCategories()];
+                DOM.categoryFilters.innerHTML = '';
+                categories.forEach(category => {
+                    const button = document.createElement('button'); button.dataset.category = category; button.className = `category-btn whitespace-nowrap px-3 py-1.5 text-sm font-medium text-white/70 rounded-md hover:bg-white/10 active:bg-white/[.15] transition-colors ${category === currentCategory ? 'active' : ''}`; button.innerHTML = `${category} <span class="delete-x">(&times;)</span>`;
+                    if (isDeleteModeActive && category !== 'All') {
+                        button.classList.add('deletable');
+                        button.onclick = () => showConfirmationModal({ title: 'Delete Category', message: `Delete "${category}"? Notes will become Uncategorized.`, onConfirm: () => deleteCategory(category), confirmText: 'Delete', showCancel: true });
+                    } else {
+                        button.onclick = () => { currentCategory = category; currentNoteId = null; isDeleteModeActive = false; renderApp(); };
+                    }
+                    DOM.categoryFilters.appendChild(button);
+                });
+            };
+            
+            const renderNoteList = () => {
+                const notes = DATA.getNotes(); let filteredNotes;
+                if (currentCategory === 'Archived') { filteredNotes = notes.filter(note => note.isArchived); } 
+                else { const nonArchivedNotes = notes.filter(note => !note.isArchived); filteredNotes = currentCategory === 'All' ? nonArchivedNotes : nonArchivedNotes.filter(note => note.category === currentCategory); }
+                DOM.notesList.innerHTML = filteredNotes.length > 0 ? filteredNotes.map(note => createNoteListItem(note)).join('') : `<p class="text-center text-gray-500 p-4">No notes here.</p>`;
+                DOM.notesList.querySelectorAll('.note-list-item').forEach(item => item.addEventListener('click', () => selectNote(item.dataset.id)));
+            };
+            
+            const createNoteListItem = (note) => {
+                const title = note.title.trim() || 'Untitled Note'; const tempDiv = document.createElement('div'); tempDiv.innerHTML = note.content || ''; const contentPreview = (tempDiv.textContent || tempDiv.innerText || "").substring(0, 60); const isSelected = note.id === currentNoteId ? 'selected' : '';
+                return `<div class="note-list-item cursor-pointer p-4 rounded-lg hover:bg-white/10 active:bg-white/[.15] transition-colors duration-200 ${isSelected}" data-id="${note.id}">
+                            <h3 class="font-semibold text-white/90 truncate">${title}</h3>
+                            <p class="text-sm text-white/60 note-content-preview mt-1">${contentPreview || 'No additional text'}</p>
+                        </div>`;
+            };
+
+            const displayNoteContent = () => {
+                DOM.deleteCurrentNoteBtn.innerHTML = ICONS.deleteNote; DOM.addImageBtn.innerHTML = ICONS.image;
+                DOM.summarizeBtn.innerHTML = ICONS.summarize; DOM.continueWritingBtn.innerHTML = ICONS.continueWriting;
+
+                if (!currentNoteId) { DOM.editorPlaceholder.style.display = 'flex'; DOM.noteEditor.style.display = 'none'; return; }
+                const note = DATA.getNotes().find(n => n.id === currentNoteId);
+                if (note) {
+                    DOM.editorPlaceholder.style.display = 'none'; DOM.noteEditor.style.display = 'flex'; DOM.noteTitleInput.value = note.title; DOM.noteContent.innerHTML = note.content; DOM.noteTimestamp.textContent = `Updated: ${new Date(note.timestamp).toLocaleString()}`; DOM.archiveNoteBtn.innerHTML = note.isArchived ? ICONS.unarchive : ICONS.archive; const categories = DATA.getCategories(); DOM.noteCategorySelect.innerHTML = `<option value="">Uncategorized</option>` + categories.map(cat => `<option value="${cat}">${cat}</option>`).join(''); DOM.noteCategorySelect.value = note.category || ""; DOM.noteCategorySelect.disabled = note.isArchived;
+                } else { currentNoteId = null; displayNoteContent(); }
+            };
+            
+            const renderApp = () => { renderFooter(); renderNoteList(); displayNoteContent(); };
+            
+            const selectNote = (id) => { currentNoteId = id; isDeleteModeActive = false; renderApp(); showEditorView(); };
+            const showEditorView = () => DOM.noteEditorContainer.classList.remove('-translate-x-[110%]');
+            const showListView = () => DOM.noteEditorContainer.classList.add('-translate-x-[110%]');
+
+            const handleNoteUpdate = () => {
+                if (!currentNoteId) return; const notes = DATA.getNotes(); const noteIndex = notes.findIndex(n => n.id === currentNoteId);
+                if (noteIndex > -1) { notes[noteIndex] = { ...notes[noteIndex], title: DOM.noteTitleInput.value, content: DOM.noteContent.innerHTML, timestamp: new Date().toISOString(), category: DOM.noteCategorySelect.value }; DATA.saveNotes(notes); renderNoteList(); DOM.noteTimestamp.textContent = `Updated: ${new Date(notes[noteIndex].timestamp).toLocaleString()}`; }
+            };
+            
+            const toggleArchive = () => {
+                if (!currentNoteId) return; const notes = DATA.getNotes(); const noteIndex = notes.findIndex(n => n.id === currentNoteId);
+                if (noteIndex > -1) { notes[noteIndex].isArchived = !notes[noteIndex].isArchived; DATA.saveNotes(notes); currentNoteId = null; renderApp(); showListView(); }
+            };
+            
+            const toggleDeleteMode = () => { isDeleteModeActive = !isDeleteModeActive; currentCategory = isDeleteModeActive ? '' : 'All'; renderApp(); };
+            
+            const deleteCategory = (catToDelete) => {
+                let categories = DATA.getCategories(); DATA.saveCategories(categories.filter(c => c !== catToDelete)); let notes = DATA.getNotes(); notes.forEach(note => { if (note.category === catToDelete) note.category = ""; }); DATA.saveNotes(notes); if (currentCategory === catToDelete) currentCategory = 'All'; isDeleteModeActive = false; renderApp();
+            };
+            
+            const showConfirmationModal = ({ title, message, onConfirm, confirmText = 'Confirm', showCancel = true, customInput = null }) => {
+                let fullMessage = message; if (customInput) { fullMessage += `<br/><input type="text" id="confirmation-input" placeholder="Type '${customInput}' to confirm" class="mt-4 w-full bg-white/5 border border-white/20 rounded-md px-3 py-2 text-white placeholder-white/40 focus:outline-none focus:ring-2 accent-ring-focus">`; }
+                DOM.confirmationModal.title.textContent = title; DOM.confirmationModal.message.innerHTML = fullMessage; DOM.confirmationModal.el.classList.remove('hidden');
+                const newConfirmBtn = DOM.confirmationModal.confirmBtn.cloneNode(true); DOM.confirmationModal.confirmBtn.parentNode.replaceChild(newConfirmBtn, DOM.confirmationModal.confirmBtn); DOM.confirmationModal.confirmBtn = newConfirmBtn; DOM.confirmationModal.confirmBtn.textContent = confirmText;
+                DOM.confirmationModal.cancelBtn.style.display = showCancel ? 'block' : 'none';
+                DOM.confirmationModal.confirmBtn.onclick = () => {
+                    if (customInput) { const input = document.getElementById('confirmation-input'); if (input.value !== customInput) { input.classList.add('border-red-500'); return; } }
+                    onConfirm(); hideConfirmationModal();
+                };
+            };
+            const hideConfirmationModal = () => DOM.confirmationModal.el.classList.add('hidden');
+            
+            const openSettingsModal = () => {
+                renderColorPalette(DOM.settingsModal.colorPalette, DATA.getAccentColor());
+                DOM.settingsModal.el.classList.remove('hidden');
+            };
+            const closeSettingsModal = () => DOM.settingsModal.el.classList.add('hidden');
+            const openAddImageModal = () => { DOM.addImageModal.input.value = ''; DOM.addImageModal.el.classList.remove('hidden'); DOM.addImageModal.input.focus(); };
+            const closeAddImageModal = () => DOM.addImageModal.el.classList.add('hidden');
+            
+            let draggedImage = null;
+            DOM.noteContent.addEventListener('mousedown', (e) => {
+                if (e.target.tagName !== 'IMG') return; e.preventDefault(); draggedImage = e.target;
+                document.addEventListener('mousemove', handleImageMouseMove); document.addEventListener('mouseup', handleImageMouseUp);
+            });
+            function handleImageMouseMove(e) { if (!draggedImage) return; }
+            function handleImageMouseUp(e) {
+                if (!draggedImage) return; const editorRect = DOM.noteContent.getBoundingClientRect();
+                if (e.clientX > editorRect.left && e.clientX < editorRect.right && e.clientY > editorRect.top && e.clientY < editorRect.bottom) { const floatDirection = (e.clientX < editorRect.left + editorRect.width / 2) ? 'left' : 'right'; draggedImage.style.float = floatDirection; draggedImage.style.margin = floatDirection === 'left' ? '0.5rem 1rem 0.5rem 0' : '0.5rem 0 0.5rem 1rem'; }
+                document.removeEventListener('mousemove', handleImageMouseMove); document.removeEventListener('mouseup', handleImageMouseUp); draggedImage = null; handleNoteUpdate();
+            }
+
+            DOM.addNoteBtn.addEventListener('click', () => {
+                const newNoteCategory = (currentCategory === 'All' || currentCategory === 'Archived') ? '' : currentCategory;
+                const newNote = { id: 'note-' + Date.now(), title: '', content: '', timestamp: new Date().toISOString(), category: newNoteCategory, isArchived: false };
+                DATA.saveNotes([newNote, ...DATA.getNotes()]);
+                if (currentCategory === 'Archived') currentCategory = 'All';
+                selectNote(newNote.id); setTimeout(() => DOM.noteTitleInput.focus(), 100);
+            });
+            [DOM.noteTitleInput, DOM.noteContent].forEach(el => el.addEventListener('input', handleNoteUpdate));
+            DOM.noteCategorySelect.addEventListener('change', () => {
+                handleNoteUpdate();
+                if(currentCategory !== 'All' && DOM.noteCategorySelect.value !== currentCategory) { currentNoteId = null; renderApp(); showListView(); }
+            });
+            DOM.archiveNoteBtn.addEventListener('click', toggleArchive);
+            DOM.deleteCurrentNoteBtn.addEventListener('click', () => {
+                if(currentNoteId) showConfirmationModal({ title: 'Delete Note', message: 'Are you sure you want to delete this note? This cannot be undone.', onConfirm: () => { DATA.saveNotes(DATA.getNotes().filter(n => n.id !== currentNoteId)); currentNoteId = null; renderApp(); showListView(); }, confirmText: 'Delete', showCancel: true, });
+            });
+            DOM.addImageBtn.addEventListener('click', openAddImageModal);
+            DOM.backToListBtn.addEventListener('click', showListView);
+            
+            // Modal Listeners
+            DOM.confirmationModal.cancelBtn.addEventListener('click', hideConfirmationModal); DOM.confirmationModal.backdrop.addEventListener('click', hideConfirmationModal);
+            DOM.settingsModal.backdrop.addEventListener('click', closeSettingsModal);
+            DOM.addImageModal.cancelBtn.addEventListener('click', closeAddImageModal); DOM.addImageModal.backdrop.addEventListener('click', closeAddImageModal);
+            DOM.summaryModal.closeBtn.addEventListener('click', () => DOM.summaryModal.el.classList.add('hidden'));
+            DOM.summaryModal.backdrop.addEventListener('click', () => DOM.summaryModal.el.classList.add('hidden'));
+
+            DOM.addImageModal.confirmBtn.addEventListener('click', () => {
+                const file = DOM.addImageModal.input.files[0];
+                if (file) {
+                    const reader = new FileReader();
+                    reader.onload = function(e) {
+                        const base64Image = e.target.result; const imgHtml = `<img src="${base64Image}" style="float: left; max-width: 50%; margin: 0.5rem 1rem 0.5rem 0;" alt="user image">`;
+                        DOM.noteContent.focus(); document.execCommand('insertHTML', false, imgHtml); handleNoteUpdate(); closeAddImageModal();
+                    };
+                    reader.readAsDataURL(file);
+                }
+            });
+            
+            // Settings Logic
+            const renderColorPalette = (container, selectedColor) => {
+                container.innerHTML = '';
+                ACCENT_COLORS.forEach(color => {
+                    const swatch = document.createElement('div');
+                    swatch.className = `color-swatch ${color.hex === selectedColor ? 'selected' : ''}`;
+                    swatch.style.backgroundColor = color.hex;
+                    swatch.onclick = () => { applyAccentColor(color.hex); renderColorPalette(container, color.hex); };
+                    container.appendChild(swatch);
+                });
+            };
+
+            const addCategory = (name) => {
+                const newCat = name.trim();
+                if (newCat) {
+                    let categories = DATA.getCategories();
+                    if (!categories.includes(newCat)) { DATA.saveCategories([...categories, newCat]); }
+                }
+            };
+            DOM.settingsModal.addCategoryBtn.addEventListener('click', () => { addCategory(DOM.settingsModal.categoryInput.value); DOM.settingsModal.categoryInput.value = ''; renderFooter(); });
+            DOM.settingsModal.exportBtn.addEventListener('click', () => {
+                const data = JSON.stringify({ notes: DATA.getNotes(), categories: DATA.getCategories() });
+                const blob = new Blob([data], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a'); a.href = url; a.download = 'notes_backup.json'; a.click(); URL.revokeObjectURL(url);
+            });
+            DOM.settingsModal.importInput.addEventListener('change', (e) => {
+                const file = e.target.files[0]; if (!file) return;
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    try { const data = JSON.parse(event.target.result);
+                        if (data.notes && data.categories) {
+                            showConfirmationModal({ title: 'Import Data', message: 'This will overwrite all current notes and categories. Continue?',
+                                onConfirm: () => { DATA.saveNotes(data.notes); DATA.saveCategories(data.categories); renderApp(); }, confirmText: 'Import' });
+                        } else { throw new Error('Invalid file format'); }
+                    } catch (error) { showConfirmationModal({ title: 'Import Error', message: 'The selected file is not a valid backup.', onConfirm: () => {}, confirmText: 'OK', showCancel: false }); }
+                };
+                reader.readAsText(file); e.target.value = ''; // Reset input
+            });
+            DOM.settingsModal.clearDataBtn.addEventListener('click', () => {
+                showConfirmationModal({ title: 'Clear All Data', message: 'This is irreversible. All notes and categories will be deleted.', onConfirm: () => { localStorage.removeItem(`notes-app-${APP_VERSION}-notes`); localStorage.removeItem(`notes-app-${APP_VERSION}-categories`); location.reload(); }, confirmText: 'Delete Forever', customInput: 'DELETE' });
+            });
+
+            // Formatting Toolbar Logic
+            const setupFormattingToolbar = () => {
+                DOM.editorToolbar.querySelectorAll('.format-btn').forEach(button => {
+                    button.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        const command = button.dataset.command;
+                        if(command) {
+                           document.execCommand(command, false, null);
+                           DOM.noteContent.focus();
+                        }
+                    });
+                });
+                const updateFormattingToolbar = () => {
+                    if (!currentNoteId) return; // Don't update if no note is selected
+                    DOM.editorToolbar.querySelectorAll('.format-btn').forEach(button => {
+                        const command = button.dataset.command;
+                         if(command) {
+                            if (document.queryCommandState(command)) {
+                                button.classList.add('active');
+                            } else {
+                                button.classList.remove('active');
+                            }
+                        }
+                    });
+                };
+                DOM.noteContent.addEventListener('keyup', updateFormattingToolbar);
+                DOM.noteContent.addEventListener('mouseup', updateFormattingToolbar);
+                document.addEventListener('selectionchange', updateFormattingToolbar);
+            };
+            
+            // --- Gemini API Logic ---
+            const callGeminiAPI = async (prompt) => {
+                const apiKey = ""; // Left empty as instructed
+                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
+
+                try {
+                    const response = await fetch(apiUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+                    });
+                    if (!response.ok) {
+                        throw new Error(`API Error: ${response.statusText}`);
+                    }
+                    const data = await response.json();
+                    return data.candidates?.[0]?.content?.parts?.[0]?.text || "Sorry, I couldn't generate a response.";
+                } catch (error) {
+                    console.error("Gemini API call failed:", error);
+                    return "Error: Could not connect to the AI service.";
+                }
+            };
+            
+            const handleSummarize = async () => {
+                if (!currentNoteId) return;
+                const noteText = DOM.noteContent.textContent;
+                if (noteText.trim().length < 50) { // Don't summarize very short notes
+                     showConfirmationModal({ title: 'Note Too Short', message: 'This note is too short to summarize.', onConfirm: () => {}, confirmText: 'OK', showCancel: false });
+                     return;
+                }
+                DOM.loadingModal.el.classList.remove('hidden');
+                const prompt = `Summarize the following text concisely:\n\n${noteText}`;
+                const summary = await callGeminiAPI(prompt);
+                DOM.loadingModal.el.classList.add('hidden');
+                DOM.summaryModal.content.textContent = summary;
+                DOM.summaryModal.el.classList.remove('hidden');
+            };
+
+            const handleContinueWriting = async () => {
+                if (!currentNoteId) return;
+                const noteText = DOM.noteContent.innerHTML; // Keep formatting
+                if (noteText.trim().length === 0) {
+                     showConfirmationModal({ title: 'Empty Note', message: 'Please write something first before I can continue.', onConfirm: () => {}, confirmText: 'OK', showCancel: false });
+                     return;
+                }
+                DOM.loadingModal.el.classList.remove('hidden');
+                const prompt = `Continue writing from the following text. Do not repeat the original text in your response:\n\n${DOM.noteContent.textContent}`;
+                const continuation = await callGeminiAPI(prompt);
+                DOM.loadingModal.el.classList.add('hidden');
+
+                // Append the text, ensuring a space if needed
+                if(DOM.noteContent.innerHTML.length > 0 && !DOM.noteContent.innerHTML.endsWith(' ')) {
+                    DOM.noteContent.innerHTML += ' ';
+                }
+                DOM.noteContent.innerHTML += continuation.replace(/\n/g, '<br>'); // preserve line breaks
+                handleNoteUpdate();
+            };
+
+            DOM.summarizeBtn.addEventListener('click', handleSummarize);
+            DOM.continueWritingBtn.addEventListener('click', handleContinueWriting);
+
+
+            // Launch Screen Logic
+            const setupLaunchScreen = () => {
+                let launchCategories = [];
+                renderColorPalette(DOM.launchScreen.colorPalette, DATA.getAccentColor());
+
+                const renderLaunchCategories = () => {
+                     DOM.launchScreen.categoryList.innerHTML = launchCategories
+                        .map(c => `<span class="bg-white/10 text-white/80 px-3 py-1 rounded-full text-sm">${c}</span>`)
+                        .join('');
+                };
+
+                const handleAddLaunchCategory = () => {
+                    const name = DOM.launchScreen.categoryInput.value.trim();
+                    if (name && !launchCategories.includes(name)) {
+                        launchCategories.push(name);
+                        renderLaunchCategories();
+                    }
+                    DOM.launchScreen.categoryInput.value = '';
+                    DOM.launchScreen.categoryInput.focus();
+                };
+
+                DOM.launchScreen.next1Btn.addEventListener('click', () => { 
+                    DOM.launchScreen.step1.classList.add('hidden'); 
+                    DOM.launchScreen.step2.classList.remove('hidden'); 
+                });
+                
+                DOM.launchScreen.addCategoryBtn.addEventListener('click', handleAddLaunchCategory);
+                DOM.launchScreen.categoryInput.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter') {
+                        e.preventDefault();
+                        handleAddLaunchCategory();
+                    }
+                });
+
+                DOM.launchScreen.finishBtn.addEventListener('click', () => {
+                    if (launchCategories.length > 0) {
+                        DATA.saveCategories(launchCategories);
+                    }
+                    DATA.setVisited(); 
+                    DOM.launchScreen.el.classList.add('hidden');
+                    renderApp();
+                });
+                
+                DOM.launchScreen.el.classList.remove('hidden');
+            };
+
+            // Initial Load
+            const init = () => {
+                applyAccentColor(DATA.getAccentColor());
+                setupFormattingToolbar();
+                if (!DATA.hasVisited()) {
+                    setupLaunchScreen();
+                } else {
+                    renderApp();
+                }
+                
+            };
+            init();
+        });
+    </script>
+
+</body>
+</html>
