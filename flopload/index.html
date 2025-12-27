@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FlopLoad | Floptropica Cloud</title>
+    <link rel="stylesheet" href="../styles.css">
+    <style>
+        .player-container {
+            max-width: 1000px;
+            margin: 40px auto;
+            padding: 40px;
+            background: #fff;
+            border-radius: 32px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.05);
+            text-align: center;
+            position: relative;
+        }
+
+        .upload-area {
+            border: 2px dashed #ffe4e8;
+            padding: 40px;
+            border-radius: 20px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-bottom: 30px;
+        }
+
+        .upload-area:hover {
+            background-color: #fff5f7;
+            border-color: #ffdce1;
+        }
+
+        .media-display {
+            width: 100%;
+            height: 70vh;
+            min-height: 400px;
+            background: #fdf2f4;
+            border-radius: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            position: relative;
+        }
+
+        #media-video,
+        #media-image {
+            display: none;
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+        }
+
+        #media-audio {
+            display: none;
+            width: 80%;
+        }
+
+        .custom-controls {
+            display: none;
+            margin-top: 20px;
+            gap: 20px;
+            justify-content: center;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .control-group {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+        }
+
+        .control-btn {
+            background: #ffe4e8;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 50px;
+            color: #5d4037;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-family: inherit;
+        }
+
+        .control-btn:hover {
+            background: #ffdce1;
+            transform: scale(1.05);
+        }
+
+        .close-btn {
+            background: #ffb1bc;
+            color: white;
+        }
+
+        .close-btn:hover {
+            background: #ff8e9e;
+        }
+
+        .volume-container {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        input[type=range] {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 100px;
+            background: transparent;
+        }
+
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 6px;
+            cursor: pointer;
+            background: #ffe4e8;
+            border-radius: 10px;
+        }
+
+        input[type=range]::-webkit-slider-thumb {
+            height: 16px;
+            width: 16px;
+            border-radius: 50%;
+            background: #ffb1bc;
+            cursor: pointer;
+            -webkit-appearance: none;
+            appearance: none;
+            margin-top: -5px;
+        }
+
+        .placeholder-text {
+            color: #5d4037;
+            opacity: 0.5;
+        }
+    </style>
+</head>
+
+<body>
+    <header class="top-bar">
+        <a href="../index.html" class="logo" style="text-decoration: none; color: inherit;">Floptropica Cloud</a>
+        <nav class="nav-links">
+            <div class="dropdown">
+                <button class="dropdown-toggle">Services</button>
+                <div class="dropdown-content">
+                    <a href="../floptropica-cloud-news/index.html">FCN News</a>
+                    <a href="index.html">FlopLoad</a>
+                    <a href="#" style="opacity: 0.5; pointer-events: none;">Coming Soon...</a>
+                </div>
+            </div>
+            <a href="#">About</a>
+            <a href="#">Contact</a>
+        </nav>
+    </header>
+
+    <main class="services-container" style="display: block; flex: 1;">
+        <div class="services-header" style="text-align: center;">
+            <h2>FlopLoad</h2>
+            <p>Private, local media player. No servers, just you.</p>
+        </div>
+
+        <div class="player-container">
+            <div class="upload-area" id="drop-zone">
+                <p class="placeholder-text" id="upload-prompt">Click or drag media here to play</p>
+                <input type="file" id="file-input" hidden accept="video/*,audio/*,image/*">
+            </div>
+
+            <div class="media-display" id="display-container">
+                <p class="placeholder-text" id="idle-text">Your content will appear here</p>
+                <video id="media-video" playsinline></video>
+                <audio id="media-audio" controls style="display:none;"></audio>
+                <img id="media-image" alt="Uploaded Content">
+            </div>
+
+            <div class="custom-controls" id="player-controls">
+                <div class="control-group">
+                    <button class="control-btn" id="toggle-btn">Play</button>
+                    <button class="control-btn" id="fullscreen-btn">Full Screen</button>
+                    <button class="control-btn close-btn" id="close-media-btn">Close Media</button>
+                </div>
+
+                <div class="control-group volume-container">
+                    <label style="font-size: 14px; font-weight: 500; color: #5d4037;">Volume</label>
+                    <input type="range" id="volume-slider" min="0" max="1" step="0.1" value="1">
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <footer class="footer">
+        <div class="footer-links">
+            <a href="https://x.com/FloptropicaCloud" target="_blank">X</a>
+            <a href="https://tiktok.com/@FloptropicaCloud" target="_blank">TikTok</a>
+            <a href="https://instagram.com/FloptropicaCloud" target="_blank">Instagram</a>
+        </div>
+    </footer>
+
+    <script>
+        const dropZone = document.getElementById('drop-zone');
+        const fileInput = document.getElementById('file-input');
+        const video = document.getElementById('media-video');
+        const audio = document.getElementById('media-audio');
+        const image = document.getElementById('media-image');
+        const controls = document.getElementById('player-controls');
+        const idleText = document.getElementById('idle-text');
+
+        const toggleBtn = document.getElementById('toggle-btn');
+        const fsBtn = document.getElementById('fullscreen-btn');
+        const closeBtn = document.getElementById('close-media-btn');
+        const volumeSlider = document.getElementById('volume-slider');
+
+        let currentMedia = null;
+
+        dropZone.onclick = () => fileInput.click();
+
+        fileInput.onchange = (e) => handleFile(e.target.files[0]);
+
+        dropZone.ondragover = (e) => {
+            e.preventDefault();
+            dropZone.style.backgroundColor = '#fff5f7';
+        };
+
+        dropZone.ondragleave = () => {
+            dropZone.style.backgroundColor = 'transparent';
+        };
+
+        dropZone.ondrop = (e) => {
+            e.preventDefault();
+            handleFile(e.dataTransfer.files[0]);
+        };
+
+        function handleFile(file) {
+            if (!file) return;
+
+            resetPlayer();
+            idleText.style.display = 'none';
+
+            const url = URL.createObjectURL(file);
+
+            if (file.type.startsWith('video/')) {
+                video.src = url;
+                video.style.display = 'block';
+                controls.style.display = 'flex';
+                currentMedia = video;
+            } else if (file.type.startsWith('audio/')) {
+                audio.src = url;
+                audio.style.display = 'block';
+                controls.style.display = 'flex';
+                currentMedia = audio;
+            } else if (file.type.startsWith('image/')) {
+                image.src = url;
+                image.style.display = 'block';
+                controls.style.display = 'flex';
+                toggleBtn.style.display = 'none';
+                volumeSlider.parentElement.style.display = 'none';
+                fsBtn.style.display = 'none';
+                currentMedia = null;
+            }
+
+            if (currentMedia) {
+                currentMedia.volume = volumeSlider.value;
+                toggleBtn.style.display = 'block';
+                volumeSlider.parentElement.style.display = 'flex';
+                fsBtn.style.display = (currentMedia === video) ? 'block' : 'none';
+
+                currentMedia.onplay = () => toggleBtn.textContent = 'Pause';
+                currentMedia.onpause = () => toggleBtn.textContent = 'Play';
+                currentMedia.onended = () => toggleBtn.textContent = 'Play';
+            }
+        }
+
+        function resetPlayer() {
+            if (video.src) URL.revokeObjectURL(video.src);
+            if (audio.src) URL.revokeObjectURL(audio.src);
+            if (image.src) URL.revokeObjectURL(image.src);
+
+            video.style.display = 'none';
+            audio.style.display = 'none';
+            image.style.display = 'none';
+            video.src = '';
+            audio.src = '';
+            image.src = '';
+
+            idleText.style.display = 'block';
+            controls.style.display = 'none';
+            toggleBtn.textContent = 'Play';
+
+            video.pause();
+            audio.pause();
+            currentMedia = null;
+        }
+
+        toggleBtn.onclick = () => {
+            if (currentMedia) {
+                if (currentMedia.paused) currentMedia.play();
+                else currentMedia.pause();
+            }
+        };
+
+        closeBtn.onclick = () => resetPlayer();
+
+        fsBtn.onclick = () => {
+            if (currentMedia === video) {
+                if (video.requestFullscreen) video.requestFullscreen();
+                else if (video.webkitRequestFullscreen) video.webkitRequestFullscreen();
+            }
+        };
+
+        volumeSlider.oninput = (e) => {
+            if (currentMedia) {
+                currentMedia.volume = e.target.value;
+            }
+        };
+
+        window.addEventListener('beforeunload', () => resetPlayer());
+    </script>
+</body>
+
+</html>
